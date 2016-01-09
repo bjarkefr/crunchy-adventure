@@ -1,3 +1,4 @@
+#[derive(Copy, Clone)]
 struct DirectionSet(u32);
 
 impl DirectionSet {
@@ -48,6 +49,7 @@ impl DirectionSet {
 	}
 }
 
+#[derive(Copy, Clone)]
 enum Tile {
 	Unassigned,
 	Tunnel(DirectionSet),
@@ -70,8 +72,35 @@ impl Tile {
 	}
 }
 
+const LABYRINTH_HEIGHT: usize = 60;
+const LABYRINTH_WIDTH: usize = 20;
+struct Labyrinth([[Tile; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH]);
+
+impl Labyrinth {
+	pub fn to_string(&self) -> String {
+		self.0.iter().map(|row| {
+			let row_iter = row.iter().map(|tile| tile.to_char());
+			row_iter.collect()
+			//row_iter.chain(['\n'].iter())
+		}).collect()
+
+/*		let a = self.0;
+		let b = a[0];
+		let c = b.iter();
+		let d = c.map(|tile| tile.to_char()).collect();
+		d*/
+		//self.0[0].iter().map(|tile| { tile.to_char() }).to_string()
+	}
+}
+
 fn main() {
+	//let mut labyrinth: [[Tile; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH] = [[Tile::Unassigned; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH];
+
+	//labyrinth[0][0] = Tile::Room(1);
+
 	let h = Tile::Tunnel(DirectionSet::new().set_up().set_down().set_right());
 
-	println!("{}", h.to_char());
+	let mut labyrinth: Labyrinth = Labyrinth([[Tile::Unassigned; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH]);
+
+	println!("{}{} - {}", h.to_char(), labyrinth.0[0][0].to_char(), labyrinth.to_string());
 }
