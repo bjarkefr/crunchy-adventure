@@ -79,17 +79,10 @@ struct Labyrinth([[Tile; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH]);
 impl Labyrinth {
 	pub fn to_string(&self) -> String {
 		self.0.iter().map(|row| {
-			let row_iter = row.iter().map(|tile| tile.to_char());
-			row_iter.collect()
-			//row_iter.chain(['\n'].iter())
+			let row_iter = row.iter().map(|tile| tile.to_char()).chain("\n".chars());
+			
+			row_iter.collect::<String>()
 		}).collect()
-
-/*		let a = self.0;
-		let b = a[0];
-		let c = b.iter();
-		let d = c.map(|tile| tile.to_char()).collect();
-		d*/
-		//self.0[0].iter().map(|tile| { tile.to_char() }).to_string()
 	}
 }
 
