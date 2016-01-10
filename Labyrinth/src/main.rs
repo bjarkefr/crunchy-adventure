@@ -111,8 +111,7 @@ impl Area {
 		Vector::new(self.max.x - self.min.x, self.max.y - self.min.y)
 	}
 
-	pub fn random_subarea(&self, min_size: Vector, max_size: Vector) -> Area {
-		let mut rng = rand::thread_rng();
+	pub fn random_subarea(&self, rng: &mut rand::ThreadRng, min_size: &Vector, max_size: &Vector) -> Area {
 		let min = Vector { x: rng.gen_range(self.min.x, self.max.x - min_size.x + 1), y: rng.gen_range(self.min.y, self.max.y - min_size.y + 1) };
 		let max = Vector { x: rng.gen_range(min.x + min_size.x, cmp::min(self.max.x, min.x + max_size.x) + 1), y: rng.gen_range(min.y + min_size.y, cmp::min(self.max.y, min.y + max_size.y) + 1) };
 
@@ -131,7 +130,7 @@ impl Labyrinth {
 		Box::new(rowIter.map(|row| row.iter().skip(area.min.x as usize).take((area.max.x - area.min.x) as usize)))
 	}*/ // @TOBY: HEEEEEEEEEEELP!!!!
 
-	fn area_unassigned(&self, area: Area) -> bool {
+	fn area_unassigned(&self, area: &Area) -> bool {
 		self.0[area.min.y as usize .. area.max.y as usize].iter().all(|row| {
 			row[area.min.x as usize .. area.max.x as usize].iter().all(|&tile| match tile {
 				Tile::Unassigned => true,
@@ -140,8 +139,8 @@ impl Labyrinth {
 		})
 	}
 
-	pub fn dimensions(&self) -> Vector {
-		Vector::new(self.0.len() as u32, self.0[0].len() as u32)
+	pub fn area(&self) -> Area {
+		Area::new(0, 0, self.0.len() as u32 - 1, self.0[0].len() as u32 - 1)
 	}
 
 	fn place(&mut self, tile: Tile, area: &Area) {
@@ -152,10 +151,18 @@ impl Labyrinth {
 		}
 	}
 
-	fn place_rooms(&mut self, n: u32) {
-		let area = self.dimensions();
-		for i in 1 .. n {
+	fn place_rooms(&mut self, rng: &mut rand::ThreadRng, n: u32, min_size: &Vector, max_size: &Vector) {
+		let area = self.area();
+		let mut id = 0;
 
+		for _ in 1 .. n {
+			let room_area = area.random_subarea(rng, min_size, max_size);
+			if !self.area_unassigned(&room_area) {
+				continue;
+			}
+
+			id = id + 1;
+			self.place(Tile::Room(id), &room_area);
 		}
 	}
 
@@ -169,24 +176,28 @@ impl Labyrinth {
 }
 
 fn main() {
+	let mut rng = rand::thread_rng();
+
 	//let mut labyrinth: [[Tile; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH] = [[Tile::Unassigned; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH];
 
 	//labyrinth[0][0] = Tile::Room(1);
 
-	let h = Tile::Tunnel(DirectionSet::new().set_up().set_down().set_right());
+	//let h = Tile::Tunnel(DirectionSet::new().set_up().set_down().set_right());
 
 	let mut labyrinth = Labyrinth([[Tile::Unassigned; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH]);
 
-	let roomArea = Area::new(2,2,16,16);
-	let subArea = roomArea.random_subarea(Vector::new(3,3), Vector::new(5,5));
+	//let room_area = Area::new(2,2,16,16);
+	//let subArea = room_area.random_subarea(&mut rng, &Vector::new(3,3), &Vector::new(5,5));
 
-	labyrinth.place(Tile::Room(2), &roomArea);
+	labyrinth.place_rooms(&mut rng, 2, &Vector::new(3,3), &Vector::new(8,8));
 
-	labyrinth.place(Tile::Tunnel(DirectionSet::new().set_down()), &subArea);
+	//labyrinth.place(Tile::Room(2), &room_area);
+
+	//labyrinth.place(Tile::Tunnel(DirectionSet::new().set_down()), &subArea);
 
 	println!("{}", labyrinth.to_string());
 
-	println!("{}", Area { min: Vector { x: 0, y: 9 }, max: Vector { x: 0, y: 9 } }.to_string());
+	//println!("{}", Area { min: Vector { x: 0, y: 9 }, max: Vector { x: 0, y: 9 } }.to_string());
 
-	println!("Room {} - Subarea {} / {}", roomArea.to_string(), subArea.to_string(), subArea.dimensions().to_string());
+	//println!("Room {} - Subarea {} / {}", room_area.to_string(), subArea.to_string(), subArea.dimensions().to_string());
 }
