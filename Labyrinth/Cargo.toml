@@ -1,0 +1,7 @@
+[package]
+name = "Labyrinth"
+version = "0.0.0"
+authors = ["Bjarke"]
+
+[dependencies]
+rand = "0.3"

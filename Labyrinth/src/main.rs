@@ -1,4 +1,8 @@
-use std::rand::{thread_rng, Rng};
+#![allow(dead_code)]
+
+extern crate rand;
+use rand::Rng;
+use std::cmp;
 
 #[derive(Copy, Clone)]
 struct DirectionSet(u32);
@@ -78,33 +82,45 @@ const LABYRINTH_HEIGHT: usize = 60;
 const LABYRINTH_WIDTH: usize = 20;
 struct Labyrinth([[Tile; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH]);
 
-struct Coord {
+struct Vector {
 	x: u32,
 	y: u32
 }
 
-impl Coord {
-	pub fn to_string(self) -> String {
+impl Vector {
+	pub fn new(x: u32, y: u32) -> Vector {
+		Vector { x: x, y: y }
+	}
+
+	pub fn to_string(&self) -> String {
 		format!("({}, {})", self.x, self.y)
 	}
 }
 
 struct Area {
-	min: Coord,
-	max: Coord
+	min: Vector,
+	max: Vector
 }
 
 impl Area {
-	pub fn random_subarea(self) -> Area {
-		let rng = thread_rng();
-		let min = Coord { x: rng.gen_range(self.min.x, self.max.x + 1), y: rng.gen_range(self.min.y, self.max.y + 1) };
-		let max = Coord { x: rng.gen_range(min.x, self.max.x + 1), y: rng.gen_range(min.y, self.max.y + 1) };
+	pub fn new(min_x: u32, min_y: u32, max_x: u32, max_y: u32) -> Area {
+		Area { min: Vector { x: min_x, y: min_y }, max: Vector { x: max_x, y: max_y } }
+	}
+
+	pub fn dimensions(&self) -> Vector {
+		Vector::new(self.max.x - self.min.x, self.max.y - self.min.y)
+	}
+
+	pub fn random_subarea(&self, min_size: Vector, max_size: Vector) -> Area {
+		let mut rng = rand::thread_rng();
+		let min = Vector { x: rng.gen_range(self.min.x, self.max.x - min_size.x + 1), y: rng.gen_range(self.min.y, self.max.y - min_size.y + 1) };
+		let max = Vector { x: rng.gen_range(min.x + min_size.x, cmp::min(self.max.x, min.x + max_size.x) + 1), y: rng.gen_range(min.y + min_size.y, cmp::min(self.max.y, min.y + max_size.y) + 1) };
 
 		Area { min: min, max: max }
 	}
 
-	pub fn to_string(self) -> String {
-		format!("[{} - {}]", self.min, self.max)
+	pub fn to_string(&self) -> String {
+		format!("[{} - {}]", self.min.to_string(), self.max.to_string())
 	}
 }
 
@@ -124,7 +140,11 @@ impl Labyrinth {
 		})
 	}
 
-	fn place(&mut self, tile: Tile, area: Area) {
+	pub fn dimensions(&self) -> Vector {
+		Vector::new(self.0.len() as u32, self.0[0].len() as u32)
+	}
+
+	fn place(&mut self, tile: Tile, area: &Area) {
 		for y in area.min.y as usize .. area.max.y as usize {
 			for x in area.min.x as usize .. area.max.x as usize {
 				self.0[y][x] = tile;
@@ -133,7 +153,10 @@ impl Labyrinth {
 	}
 
 	fn place_rooms(&mut self, n: u32) {
+		let area = self.dimensions();
+		for i in 1 .. n {
 
+		}
 	}
 
 	pub fn to_string(&self) -> String {
@@ -154,7 +177,16 @@ fn main() {
 
 	let mut labyrinth = Labyrinth([[Tile::Unassigned; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH]);
 
-	println!("{}{} - {}", h.to_char(), labyrinth.0[0][0].to_char(), labyrinth.to_string());
+	let roomArea = Area::new(2,2,16,16);
+	let subArea = roomArea.random_subarea(Vector::new(3,3), Vector::new(5,5));
 
-	println!("{}", Area { min: Coord { x: 0, y: 9 }, max: Coord { x: 0, y: 9 } }.to_string());
+	labyrinth.place(Tile::Room(2), &roomArea);
+
+	labyrinth.place(Tile::Tunnel(DirectionSet::new().set_down()), &subArea);
+
+	println!("{}", labyrinth.to_string());
+
+	println!("{}", Area { min: Vector { x: 0, y: 9 }, max: Vector { x: 0, y: 9 } }.to_string());
+
+	println!("Room {} - Subarea {} / {}", roomArea.to_string(), subArea.to_string(), subArea.dimensions().to_string());
 }
