@@ -59,7 +59,7 @@ impl DirectionSet {
 enum Tile {
 	Unassigned,
 	Tunnel(DirectionSet),
-	Room(u32)
+	Room(i32)
 }
 
 impl Tile {
@@ -78,17 +78,18 @@ impl Tile {
 	}
 }
 
-const LABYRINTH_HEIGHT: usize = 60;
-const LABYRINTH_WIDTH: usize = 20;
-struct Labyrinth([[Tile; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH]);
+const LABYRINTH_WIDTH: usize = 60;
+const LABYRINTH_HEIGHT: usize = 20;
+
+struct Labyrinth([[Tile; LABYRINTH_WIDTH]; LABYRINTH_HEIGHT]);
 
 struct Vector {
-	x: u32,
-	y: u32
+	x: i32,
+	y: i32
 }
 
 impl Vector {
-	pub fn new(x: u32, y: u32) -> Vector {
+	pub fn new(x: i32, y: i32) -> Vector {
 		Vector { x: x, y: y }
 	}
 
@@ -103,17 +104,32 @@ struct Area {
 }
 
 impl Area {
-	pub fn new(min_x: u32, min_y: u32, max_x: u32, max_y: u32) -> Area {
+	pub fn new(min_x: i32, min_y: i32, max_x: i32, max_y: i32) -> Area {
 		Area { min: Vector { x: min_x, y: min_y }, max: Vector { x: max_x, y: max_y } }
 	}
 
 	pub fn dimensions(&self) -> Vector {
-		Vector::new(self.max.x - self.min.x, self.max.y - self.min.y)
+		Vector::new(self.max.x - self.min.x + 1, self.max.y - self.min.y + 1)
+	}
+
+	pub fn enlarge(&self, size: i32) -> Area {
+		Area::new(self.min.x - size, self.min.y - size, self.max.x + size, self.max.y + size)
+	}
+
+	pub fn crop(&self, area: &Area) -> Area {
+		Area::new(cmp::max(self.min.x, area.min.x), cmp::max(self.min.y, area.min.y), cmp::min(self.max.x, area.max.x), cmp::min(self.max.y, area.max.y))
 	}
 
 	pub fn random_subarea(&self, rng: &mut rand::ThreadRng, min_size: &Vector, max_size: &Vector) -> Area {
-		let min = Vector { x: rng.gen_range(self.min.x, self.max.x - min_size.x + 1), y: rng.gen_range(self.min.y, self.max.y - min_size.y + 1) };
-		let max = Vector { x: rng.gen_range(min.x + min_size.x, cmp::min(self.max.x, min.x + max_size.x) + 1), y: rng.gen_range(min.y + min_size.y, cmp::min(self.max.y, min.y + max_size.y) + 1) };
+		let min = Vector {
+			x: rng.gen_range(self.min.x, self.max.x - min_size.x + 2),
+			y: rng.gen_range(self.min.y, self.max.y - min_size.y + 2)
+		};
+
+		let max = Vector {
+			x: rng.gen_range(min.x + min_size.x - 1, cmp::min(self.max.x, min.x + max_size.x - 1) + 1),
+			y: rng.gen_range(min.y + min_size.y - 1, cmp::min(self.max.y, min.y + max_size.y - 1) + 1)
+		};
 
 		Area { min: min, max: max }
 	}
@@ -131,37 +147,37 @@ impl Labyrinth {
 	}*/ // @TOBY: HEEEEEEEEEEELP!!!!
 
 	fn area_unassigned(&self, area: &Area) -> bool {
-		self.0[area.min.y as usize .. area.max.y as usize].iter().all(|row| {
-			row[area.min.x as usize .. area.max.x as usize].iter().all(|&tile| match tile {
+		self.0[area.min.y as usize .. (area.max.y + 1) as usize].iter().all(|row| {
+			row[area.min.x as usize .. (area.max.x + 1) as usize].iter().all(|&tile| match tile {
 				Tile::Unassigned => true,
 				_ => false
 			})
 		})
 	}
 
-	pub fn area(&self) -> Area {
-		Area::new(0, 0, self.0.len() as u32 - 1, self.0[0].len() as u32 - 1)
+	pub fn area(&self) -> Area { // Messed up what is row and what is columns...??
+		Area::new(0, 0, self.0[0].len() as i32 - 1, self.0.len() as i32 - 1)
 	}
 
 	fn place(&mut self, tile: Tile, area: &Area) {
-		for y in area.min.y as usize .. area.max.y as usize {
-			for x in area.min.x as usize .. area.max.x as usize {
+		for y in area.min.y as usize .. (area.max.y + 1) as usize {
+			for x in area.min.x as usize .. (area.max.x + 1) as usize {
 				self.0[y][x] = tile;
 			}
 		}
 	}
 
-	fn place_rooms(&mut self, rng: &mut rand::ThreadRng, n: u32, min_size: &Vector, max_size: &Vector) {
+	fn place_rooms(&mut self, rng: &mut rand::ThreadRng, n: i32, min_size: &Vector, max_size: &Vector) {
 		let area = self.area();
 		let mut id = 0;
 
-		for _ in 1 .. n {
+		for _ in 0 .. n {
 			let room_area = area.random_subarea(rng, min_size, max_size);
-			if !self.area_unassigned(&room_area) {
+			if !self.area_unassigned(&area.crop(&room_area.enlarge(1))) {
 				continue;
 			}
 
-			id = id + 1;
+			id += 1;
 			self.place(Tile::Room(id), &room_area);
 		}
 	}
@@ -178,20 +194,18 @@ impl Labyrinth {
 fn main() {
 	let mut rng = rand::thread_rng();
 
-	//let mut labyrinth: [[Tile; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH] = [[Tile::Unassigned; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH];
-
 	//labyrinth[0][0] = Tile::Room(1);
 
 	//let h = Tile::Tunnel(DirectionSet::new().set_up().set_down().set_right());
 
-	let mut labyrinth = Labyrinth([[Tile::Unassigned; LABYRINTH_HEIGHT]; LABYRINTH_WIDTH]);
+	let mut labyrinth = Labyrinth([[Tile::Unassigned; LABYRINTH_WIDTH]; LABYRINTH_HEIGHT]);
 
 	//let room_area = Area::new(2,2,16,16);
 	//let subArea = room_area.random_subarea(&mut rng, &Vector::new(3,3), &Vector::new(5,5));
 
-	labyrinth.place_rooms(&mut rng, 2, &Vector::new(3,3), &Vector::new(8,8));
+	labyrinth.place_rooms(&mut rng, 10, &Vector::new(3,3), &Vector::new(8,8));
 
-	//labyrinth.place(Tile::Room(2), &room_area);
+	//labyrinth.place(Tile::Room(9), &Area::new(0,0,9,0));
 
 	//labyrinth.place(Tile::Tunnel(DirectionSet::new().set_down()), &subArea);
 
