@@ -3,6 +3,16 @@
 extern crate rand;
 use rand::Rng;
 use std::cmp;
+use std::ops::Add;
+use std::ops::Sub;
+
+#[derive(Copy, Clone)]
+struct Direction(u32);
+
+const DirectionLeft : Direction = Direction(1);
+const DirectionRight : Direction = Direction(2);
+const DirectionUp : Direction = Direction(4);
+const DirectionDown : Direction = Direction(8);
 
 #[derive(Copy, Clone)]
 struct DirectionSet(u32);
@@ -10,6 +20,10 @@ struct DirectionSet(u32);
 impl DirectionSet {
 	pub fn new() -> DirectionSet {
 		DirectionSet(0)
+	}
+
+	pub fn is_set(self, dir: Direction) -> bool {
+		self.0 & dir != 0
 	}
 
 	pub fn set_left(self) -> DirectionSet {
@@ -98,6 +112,22 @@ impl Vector {
 	}
 }
 
+impl Add for Vector {
+    type Output = Vector;
+
+    fn add(self, other: Vector) -> Vector {
+        Vector { x: self.x + other.x, y: self.y + other.y }
+    }
+}
+
+impl Sub for Vector {
+    type Output = Vector;
+
+    fn sub(self, other: Vector) -> Vector {
+        Vector { x: self.x - other.x, y: self.y - other.y }
+    }
+}
+
 struct Area {
 	min: Vector,
 	max: Vector
@@ -146,7 +176,7 @@ impl Labyrinth {
 		Box::new(rowIter.map(|row| row.iter().skip(area.min.x as usize).take((area.max.x - area.min.x) as usize)))
 	}*/ // @TOBY: HEEEEEEEEEEELP!!!!
 
-	fn area_unassigned(&self, area: &Area) -> bool {
+	pub fn area_unassigned(&self, area: &Area) -> bool {
 		self.0[area.min.y as usize .. (area.max.y + 1) as usize].iter().all(|row| {
 			row[area.min.x as usize .. (area.max.x + 1) as usize].iter().all(|&tile| match tile {
 				Tile::Unassigned => true,
@@ -159,7 +189,7 @@ impl Labyrinth {
 		Area::new(0, 0, self.0[0].len() as i32 - 1, self.0.len() as i32 - 1)
 	}
 
-	fn place(&mut self, tile: Tile, area: &Area) {
+	pub fn place(&mut self, tile: Tile, area: &Area) {
 		for y in area.min.y as usize .. (area.max.y + 1) as usize {
 			for x in area.min.x as usize .. (area.max.x + 1) as usize {
 				self.0[y][x] = tile;
@@ -167,7 +197,7 @@ impl Labyrinth {
 		}
 	}
 
-	fn place_rooms(&mut self, rng: &mut rand::ThreadRng, n: i32, min_size: &Vector, max_size: &Vector) {
+	pub fn place_rooms(&mut self, rng: &mut rand::ThreadRng, n: i32, min_size: &Vector, max_size: &Vector) {
 		let area = self.area();
 		let mut id = 0;
 
@@ -181,6 +211,16 @@ impl Labyrinth {
 			self.place(Tile::Room(id), &room_area);
 		}
 	}
+
+/*	fn dig_tunnel(&mut self, from: &Vector, to: &Vector) {
+		let to - from;
+
+		self.0[from.y as usize][from.x as usize]
+	}
+
+	pub fn place_tunnel(&mut self, start: &Vector) {
+
+	}*/
 
 	pub fn to_string(&self) -> String {
 		self.0.iter().map(|row| {
