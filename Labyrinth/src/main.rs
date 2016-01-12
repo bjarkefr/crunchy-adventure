@@ -5,7 +5,7 @@ use rand::Rng;
 use std::cmp;
 use std::ops::Add;
 use std::ops::Sub;
-//use std::cmp::Equiv;
+use std::vec::Vec;
 
 #[derive(Copy, Clone, PartialEq)]
 struct Direction(u32);
@@ -119,11 +119,6 @@ impl Tile {
 	}
 }
 
-const LABYRINTH_WIDTH: usize = 60;
-const LABYRINTH_HEIGHT: usize = 20;
-
-struct Labyrinth([[Tile; LABYRINTH_WIDTH]; LABYRINTH_HEIGHT]);
-
 #[derive(Clone, PartialEq)]
 struct Vector {
 	x: i32,
@@ -218,15 +213,27 @@ impl Area {
 	}
 }
 
+const LABYRINTH_WIDTH: usize = 60;
+const LABYRINTH_HEIGHT: usize = 20;
+
+struct Labyrinth {
+	map: ([[Tile; LABYRINTH_WIDTH]; LABYRINTH_HEIGHT]),
+	connected_rooms: Vec<bool>
+}
+
 impl Labyrinth {
+	pub fn new() -> Labyrinth {
+		Labyrinth { map: [[Tile::Unassigned; LABYRINTH_WIDTH]; LABYRINTH_HEIGHT], connected_rooms: Vec::new() }
+	}
+
 	/*fn iter(&self, area: Area) -> Box<Iterator<Item=Tile>> { //iter::Map<iter::Take<iter::Skip<slice::Iter<Tile>>>> {
-		let rowIter = self.0.iter().skip(area.min.y as usize).take((area.max.y - area.min.y) as usize);
+		let rowIter = self.map.iter().skip(area.min.y as usize).take((area.max.y - area.min.y) as usize);
 
 		Box::new(rowIter.map(|row| row.iter().skip(area.min.x as usize).take((area.max.x - area.min.x) as usize)))
 	}*/ // @TOBY: HEEEEEEEEEEELP!!!!
 
 	pub fn area_unassigned(&self, area: &Area) -> bool {
-		self.0[area.min.y as usize .. (area.max.y + 1) as usize].iter().all(|row| {
+		self.map[area.min.y as usize .. (area.max.y + 1) as usize].iter().all(|row| {
 			row[area.min.x as usize .. (area.max.x + 1) as usize].iter().all(|&tile| match tile {
 				Tile::Unassigned => true,
 				_ => false
@@ -235,20 +242,20 @@ impl Labyrinth {
 	}
 
 	pub fn area(&self) -> Area {
-		Area::new(0, 0, self.0[0].len() as i32 - 1, self.0.len() as i32 - 1)
+		Area::new(0, 0, self.map[0].len() as i32 - 1, self.map.len() as i32 - 1)
 	}
 
 	pub fn place(&mut self, tile: Tile, area: &Area) {
 		for y in area.min.y as usize .. (area.max.y + 1) as usize {
 			for x in area.min.x as usize .. (area.max.x + 1) as usize {
-				self.0[y][x] = tile;
+				self.map[y][x] = tile;
 			}
 		}
 	}
 
 	pub fn place_rooms(&mut self, rng: &mut rand::ThreadRng, n: i32, min_size: &Vector, max_size: &Vector) {
 		let area = self.area();
-		let mut id = 0;
+		let mut id = -1;
 
 		for _ in 0 .. n {
 			let room_area = area.random_subarea(rng, min_size, max_size);
@@ -257,6 +264,7 @@ impl Labyrinth {
 			}
 
 			id += 1;
+			self.connected_rooms.push(false);
 			self.place(Tile::Room(id), &room_area);
 		}
 	}
@@ -265,48 +273,55 @@ impl Labyrinth {
 		let to = from + &dir.to_unit_vector();
 		let inverse_dir = dir.inverse();
 
-		self.0[from.y as usize][from.x as usize] = match self.0[from.y as usize][from.x as usize] {
+		self.map[from.y as usize][from.x as usize] = match self.map[from.y as usize][from.x as usize] {
 			Tile::Unassigned => Tile::Tunnel(DirectionSet::new().set(dir)),
 			Tile::Tunnel(dir_set) => Tile::Tunnel(dir_set.set(dir)),
 			_ => Tile::Unassigned
 		};
 
-		self.0[to.y as usize][to.x as usize] = match self.0[to.y as usize][to.x as usize] {
+		self.map[to.y as usize][to.x as usize] = match self.map[to.y as usize][to.x as usize] {
 			Tile::Unassigned => Tile::Tunnel(DirectionSet::new().set(inverse_dir)),
 			Tile::Tunnel(dir_set) => Tile::Tunnel(dir_set.set(inverse_dir)),
-			_ => Tile::Unassigned
+			Tile::Room(n) => {
+				self.connected_rooms[n as usize] = true;
+				Tile::Room(n)
+			}
 		};
 
 		to
 	}
 
-	fn direction_unassigned(&self, from: &Vector, dir: Direction) -> bool {
+	fn direction_digable(&self, from: &Vector, dir: Direction) -> bool {
 		let dest = from + &dir.to_unit_vector();
 
 		if !self.area().contains(&dest) {
 			return false
 		}
 
-		self.0[dest.y as usize][dest.x as usize] == Tile::Unassigned
+		match self.map[dest.y as usize][dest.x as usize] {
+			Tile::Unassigned => true,
+			Tile::Room(n) => !self.connected_rooms[n as usize],
+			_ => false
+		}
 	}
 
-	fn get_unassigned_directions(&self, from: &Vector) -> DirectionSet {
-		let mut unassigned_directions = DirectionSet::new();
+	fn digable_directions(&self, from: &Vector) -> DirectionSet {
+		let mut digable_directions = DirectionSet::new();
 
-		if self.direction_unassigned(from, DIRECTION_LEFT) {
-			unassigned_directions = unassigned_directions.set(DIRECTION_LEFT)
+		if self.direction_digable(from, DIRECTION_LEFT) {
+			digable_directions = digable_directions.set(DIRECTION_LEFT)
 		}
-		if self.direction_unassigned(from, DIRECTION_RIGHT) {
-			unassigned_directions = unassigned_directions.set(DIRECTION_RIGHT)
+		if self.direction_digable(from, DIRECTION_RIGHT) {
+			digable_directions = digable_directions.set(DIRECTION_RIGHT)
 		}
-		if self.direction_unassigned(from, DIRECTION_UP) {
-			unassigned_directions = unassigned_directions.set(DIRECTION_UP)
+		if self.direction_digable(from, DIRECTION_UP) {
+			digable_directions = digable_directions.set(DIRECTION_UP)
 		}
-		if self.direction_unassigned(from, DIRECTION_DOWN) {
-			unassigned_directions = unassigned_directions.set(DIRECTION_DOWN)
+		if self.direction_digable(from, DIRECTION_DOWN) {
+			digable_directions = digable_directions.set(DIRECTION_DOWN)
 		}
 
-		unassigned_directions
+		digable_directions
 	}
 
 	// no special case is required for digging into rooms
@@ -315,7 +330,7 @@ impl Labyrinth {
 		let mut current = (*start).clone();
 
 		loop {
-			let dirs = self.get_unassigned_directions(&current).to_vec();
+			let dirs = self.digable_directions(&current).to_vec();
 			if dirs.len() == 0 {
 				return;
 			}
@@ -326,7 +341,7 @@ impl Labyrinth {
 	}
 
 	pub fn to_string(&self) -> String {
-		self.0.iter().map(|row| {
+		self.map.iter().map(|row| {
 			let row_iter = row.iter().map(|tile| tile.to_char()).chain("\n".chars());
 			
 			row_iter.collect::<String>()
@@ -341,7 +356,7 @@ fn main() {
 
 	//let h = Tile::Tunnel(DirectionSet::new().set_up().set_down().set_right());
 
-	let mut labyrinth = Labyrinth([[Tile::Unassigned; LABYRINTH_WIDTH]; LABYRINTH_HEIGHT]);
+	let mut labyrinth = Labyrinth::new();
 
 	//let room_area = Area::new(2,2,16,16);
 	//let subArea = room_area.random_subarea(&mut rng, &Vector::new(3,3), &Vector::new(5,5));
