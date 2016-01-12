@@ -261,8 +261,9 @@ impl Labyrinth {
 		}
 	}
 
-	fn dig_tunnel_segment(&mut self, from: &Vector, to: &Vector) {
-		let dir = (to - from).to_direction();
+	fn dig_tunnel_segment(&mut self, from: &Vector, dir: Direction) -> Vector {
+		let to = from + &dir.to_unit_vector();
+		let inverse_dir = dir.inverse();
 
 		self.0[from.y as usize][from.x as usize] = match self.0[from.y as usize][from.x as usize] {
 			Tile::Unassigned => Tile::Tunnel(DirectionSet::new().set(dir)),
@@ -270,13 +271,13 @@ impl Labyrinth {
 			_ => Tile::Unassigned
 		};
 
-		let inverse_dir = dir.inverse();
-
 		self.0[to.y as usize][to.x as usize] = match self.0[to.y as usize][to.x as usize] {
 			Tile::Unassigned => Tile::Tunnel(DirectionSet::new().set(inverse_dir)),
 			Tile::Tunnel(dir_set) => Tile::Tunnel(dir_set.set(inverse_dir)),
 			_ => Tile::Unassigned
-		}
+		};
+
+		to
 	}
 
 	fn direction_unassigned(&self, from: &Vector, dir: Direction) -> bool {
@@ -308,6 +309,8 @@ impl Labyrinth {
 		unassigned_directions
 	}
 
+	// no special case is required for digging into rooms
+
 	pub fn place_tunnel(&mut self, rng: &mut rand::ThreadRng, start: &Vector) {
 		let mut current = (*start).clone();
 
@@ -318,10 +321,7 @@ impl Labyrinth {
 			}
 
 			let dir = dirs[rng.gen_range(0, dirs.len())];
-
-			let to = &current + &dir.to_unit_vector();
-			self.dig_tunnel_segment(&current, &to);
-			current = to;
+			current = self.dig_tunnel_segment(&current, dir);
 		}
 	}
 
