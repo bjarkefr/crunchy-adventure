@@ -5,16 +5,40 @@ use rand::Rng;
 use std::cmp;
 use std::ops::Add;
 use std::ops::Sub;
+//use std::cmp::Equiv;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 struct Direction(u32);
 
-const DirectionLeft : Direction = Direction(1);
-const DirectionRight : Direction = Direction(2);
-const DirectionUp : Direction = Direction(4);
-const DirectionDown : Direction = Direction(8);
+impl Direction {
+	pub fn inverse(self) -> Direction {
+		match self {
+			DIRECTION_LEFT => DIRECTION_RIGHT,
+			DIRECTION_RIGHT => DIRECTION_LEFT,
+			DIRECTION_UP => DIRECTION_DOWN,
+			DIRECTION_DOWN => DIRECTION_UP,
+			_ => DIRECTION_NONE
+		}
+	}
 
-#[derive(Copy, Clone)]
+	pub fn to_unit_vector(self) -> Vector {
+		match self {
+			DIRECTION_LEFT => Vector::new(-1, 0),
+			DIRECTION_RIGHT => Vector::new(1, 0),
+			DIRECTION_UP => Vector::new(0, -1),
+			DIRECTION_DOWN => Vector::new(0, 1),
+			_ => Vector::new(0, 0)
+		}
+	}
+}
+
+const DIRECTION_NONE : Direction = Direction(0);
+const DIRECTION_LEFT : Direction = Direction(1);
+const DIRECTION_RIGHT : Direction = Direction(2);
+const DIRECTION_UP : Direction = Direction(4);
+const DIRECTION_DOWN : Direction = Direction(8);
+
+#[derive(Copy, Clone, PartialEq)]
 struct DirectionSet(u32);
 
 impl DirectionSet {
@@ -23,27 +47,30 @@ impl DirectionSet {
 	}
 
 	pub fn is_set(self, dir: Direction) -> bool {
-		self.0 & dir != 0
+		self.0 & dir.0 != 0
 	}
 
-	pub fn set_left(self) -> DirectionSet {
-		DirectionSet(self.0 | 1)
+	pub fn set(self, dir: Direction) -> DirectionSet {
+		DirectionSet(self.0 | dir.0)
 	}
 
-	pub fn left(self) -> bool {
-		self.0 & 1 != 0
-	}
+	pub fn to_vec(self) -> Vec<Direction> {
+		let mut vec = Vec::new();
 
-	pub fn set_right(self) -> DirectionSet {
-		DirectionSet(self.0 | 2)
-	}
+		if self.is_set(DIRECTION_LEFT) {
+			vec.push(DIRECTION_LEFT)
+		}
+		if self.is_set(DIRECTION_RIGHT) {
+			vec.push(DIRECTION_RIGHT)
+		}
+		if self.is_set(DIRECTION_UP) {
+			vec.push(DIRECTION_UP)
+		}
+		if self.is_set(DIRECTION_DOWN) {
+			vec.push(DIRECTION_DOWN)
+		}
 
-	pub fn set_up(self) -> DirectionSet {
-		DirectionSet(self.0 | 4)
-	}
-
-	pub fn set_down(self) -> DirectionSet {
-		DirectionSet(self.0 | 8)
+		vec
 	}
 
 	pub fn to_char(self) -> char {
@@ -69,7 +96,7 @@ impl DirectionSet {
 	}
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 enum Tile {
 	Unassigned,
 	Tunnel(DirectionSet),
@@ -97,6 +124,7 @@ const LABYRINTH_HEIGHT: usize = 20;
 
 struct Labyrinth([[Tile; LABYRINTH_WIDTH]; LABYRINTH_HEIGHT]);
 
+#[derive(Clone, PartialEq)]
 struct Vector {
 	x: i32,
 	y: i32
@@ -107,26 +135,43 @@ impl Vector {
 		Vector { x: x, y: y }
 	}
 
+	pub fn to_direction(&self) -> Direction {
+		if self.x == 0 {
+			if self.y == 1 { DIRECTION_DOWN } else { if self.y == -1 { DIRECTION_UP } else { DIRECTION_NONE } }
+		}
+		else if self.y == 0 {
+			if self.x == 1 { DIRECTION_RIGHT } else { if self.x == -1 { DIRECTION_LEFT } else { DIRECTION_NONE } }
+		}
+		else {
+			DIRECTION_NONE
+		}
+	}
+
 	pub fn to_string(&self) -> String {
 		format!("({}, {})", self.x, self.y)
 	}
 }
 
-impl Add for Vector {
+impl<'a, 'b> Add<&'b Vector> for &'a Vector {
     type Output = Vector;
 
-    fn add(self, other: Vector) -> Vector {
+    fn add(self, other: &'b Vector) -> Vector {
         Vector { x: self.x + other.x, y: self.y + other.y }
     }
 }
 
-impl Sub for Vector {
+impl<'a, 'b> Sub<&'b Vector> for &'a Vector {
     type Output = Vector;
 
-    fn sub(self, other: Vector) -> Vector {
+    fn sub(self, other: &'b Vector) -> Vector {
         Vector { x: self.x - other.x, y: self.y - other.y }
     }
 }
+
+const LEFT_UNIT_VECTOR : Vector = Vector { x: -1, y: 0 }; //DIRECTION_UP.to_unit_vector(); // impossible method call without some experimental features...
+const RIGHT_UNIT_VECTOR : Vector = Vector { x: 1, y: 0 };
+const UP_UNIT_VECTOR : Vector = Vector { x: 0, y: -1 };
+const DOWN_UNIT_VECTOR : Vector = Vector { x: 0, y: 1 };
 
 struct Area {
 	min: Vector,
@@ -164,6 +209,10 @@ impl Area {
 		Area { min: min, max: max }
 	}
 
+	pub fn contains(&self, pos: &Vector) -> bool {
+		pos.x >= self.min.x && pos.x <= self.max.x && pos.y >= self.min.y && pos.y <= self.max.y
+	}
+
 	pub fn to_string(&self) -> String {
 		format!("[{} - {}]", self.min.to_string(), self.max.to_string())
 	}
@@ -185,7 +234,7 @@ impl Labyrinth {
 		})
 	}
 
-	pub fn area(&self) -> Area { // Messed up what is row and what is columns...??
+	pub fn area(&self) -> Area {
 		Area::new(0, 0, self.0[0].len() as i32 - 1, self.0.len() as i32 - 1)
 	}
 
@@ -212,15 +261,69 @@ impl Labyrinth {
 		}
 	}
 
-/*	fn dig_tunnel(&mut self, from: &Vector, to: &Vector) {
-		let to - from;
+	fn dig_tunnel_segment(&mut self, from: &Vector, to: &Vector) {
+		let dir = (to - from).to_direction();
 
-		self.0[from.y as usize][from.x as usize]
+		self.0[from.y as usize][from.x as usize] = match self.0[from.y as usize][from.x as usize] {
+			Tile::Unassigned => Tile::Tunnel(DirectionSet::new().set(dir)),
+			Tile::Tunnel(dir_set) => Tile::Tunnel(dir_set.set(dir)),
+			_ => Tile::Unassigned
+		};
+
+		let inverse_dir = dir.inverse();
+
+		self.0[to.y as usize][to.x as usize] = match self.0[to.y as usize][to.x as usize] {
+			Tile::Unassigned => Tile::Tunnel(DirectionSet::new().set(inverse_dir)),
+			Tile::Tunnel(dir_set) => Tile::Tunnel(dir_set.set(inverse_dir)),
+			_ => Tile::Unassigned
+		}
 	}
 
-	pub fn place_tunnel(&mut self, start: &Vector) {
+	fn direction_unassigned(&self, from: &Vector, dir: Direction) -> bool {
+		let dest = from + &dir.to_unit_vector();
 
-	}*/
+		if !self.area().contains(&dest) {
+			return false
+		}
+
+		self.0[dest.y as usize][dest.x as usize] == Tile::Unassigned
+	}
+
+	fn get_unassigned_directions(&self, from: &Vector) -> DirectionSet {
+		let mut unassigned_directions = DirectionSet::new();
+
+		if self.direction_unassigned(from, DIRECTION_LEFT) {
+			unassigned_directions = unassigned_directions.set(DIRECTION_LEFT)
+		}
+		if self.direction_unassigned(from, DIRECTION_RIGHT) {
+			unassigned_directions = unassigned_directions.set(DIRECTION_RIGHT)
+		}
+		if self.direction_unassigned(from, DIRECTION_UP) {
+			unassigned_directions = unassigned_directions.set(DIRECTION_UP)
+		}
+		if self.direction_unassigned(from, DIRECTION_DOWN) {
+			unassigned_directions = unassigned_directions.set(DIRECTION_DOWN)
+		}
+
+		unassigned_directions
+	}
+
+	pub fn place_tunnel(&mut self, rng: &mut rand::ThreadRng, start: &Vector) {
+		let mut current = (*start).clone();
+
+		loop {
+			let dirs = self.get_unassigned_directions(&current).to_vec();
+			if dirs.len() == 0 {
+				return;
+			}
+
+			let dir = dirs[rng.gen_range(0, dirs.len())];
+
+			let to = &current + &dir.to_unit_vector();
+			self.dig_tunnel_segment(&current, &to);
+			current = to;
+		}
+	}
 
 	pub fn to_string(&self) -> String {
 		self.0.iter().map(|row| {
@@ -244,6 +347,7 @@ fn main() {
 	//let subArea = room_area.random_subarea(&mut rng, &Vector::new(3,3), &Vector::new(5,5));
 
 	labyrinth.place_rooms(&mut rng, 10, &Vector::new(3,3), &Vector::new(8,8));
+	labyrinth.place_tunnel(&mut rng, &Vector::new(0,0));
 
 	//labyrinth.place(Tile::Room(9), &Area::new(0,0,9,0));
 
