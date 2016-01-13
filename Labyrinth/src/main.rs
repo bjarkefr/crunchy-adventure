@@ -224,6 +224,32 @@ impl Area {
 	pub fn to_string(&self) -> String {
 		format!("[{} - {}]", self.min.to_string(), self.max.to_string())
 	}
+
+	pub fn edge_direction(&self, from: &Vector) -> Direction {
+		let minx_dist = from.x - self.min.x;
+		let maxx_dist = self.max.x - from.x;
+
+		let xmin_dist = cmp::min(minx_dist, maxx_dist);
+
+		let miny_dist = from.y - self.min.y;
+		let maxy_dist = self.max.y - from.y;
+
+		let ymin_dist = cmp::min(miny_dist, maxy_dist);
+
+		if xmin_dist < ymin_dist {
+			if xmin_dist == minx_dist {
+				DIRECTION_LEFT
+			} else {
+				DIRECTION_RIGHT
+			}
+		} else {
+			if ymin_dist == miny_dist {
+				DIRECTION_UP
+			} else {
+				DIRECTION_DOWN
+			}
+		}
+	}
 }
 
 const LABYRINTH_WIDTH: usize = 40;
@@ -372,12 +398,16 @@ impl Labyrinth {
 		BasedDir::new(Vector::new(0,0), DIRECTION_RIGHT) // TODO!!
 	}*/
 
-	pub fn place_tunnels(&mut self, rng: &mut rand::ThreadRng, start: BasedDir) {
-		self.dig_tunnel_piece(&start.pos, start.dir.inverse());
+	pub fn place_tunnels(&mut self, rng: &mut rand::ThreadRng, start: Vector) {
+		let dir = self.area().edge_direction(&start);
+		self.dig_tunnel_piece(&start, dir); //start.dir.inverse()
 
 		let mut pile = RandomPile::new();
 
-		pile.push(rng, start);
+		pile.push(rng, BasedDir::new(start, DIRECTION_LEFT));
+		pile.push(rng, BasedDir::new(start, DIRECTION_RIGHT));
+		pile.push(rng, BasedDir::new(start, DIRECTION_UP));
+		pile.push(rng, BasedDir::new(start, DIRECTION_DOWN));
 
 		while match pile.pop() {
 			Some(dir) => {
@@ -587,7 +617,7 @@ fn main() {
 
 	labyrinth.place_rooms(&mut rng, 10, &Vector::new(3,3), &Vector::new(8,8));
 
-	labyrinth.place_tunnels(&mut rng, BasedDir::new(Vector::new(0,0), DIRECTION_DOWN));
+	labyrinth.place_tunnels(&mut rng, Vector::new(0,0));
 
 	//labyrinth.tunnel_in_direction(&mut rng, &Vector::new(0,0), DIRECTION_DOWN);
 
