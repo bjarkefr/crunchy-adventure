@@ -226,8 +226,8 @@ impl Area {
 	}
 }
 
-const LABYRINTH_WIDTH: usize = 10;
-const LABYRINTH_HEIGHT: usize = 10;
+const LABYRINTH_WIDTH: usize = 40;
+const LABYRINTH_HEIGHT: usize = 40;
 
 struct Labyrinth {
 	map: ([[Tile; LABYRINTH_WIDTH]; LABYRINTH_HEIGHT]),
@@ -304,7 +304,6 @@ impl Labyrinth {
 	}
 
 	fn direction_digable(&self, from: &Vector, dir: Direction) -> bool {
-		println!("{} -> {}", from.to_string(), dir.to_char());
 		let dest = from + &dir.to_unit_vector();
 
 		if !self.area().contains(&dest) {
@@ -401,19 +400,19 @@ impl Labyrinth {
 		let area = self.area();
 		let mut output = String::new();
 
-		output.push_str("X");
+		output.push_str("#");
 		for x in area.min.x .. area.max.x + 1 {
 			output.push_str(match self.map[0][x as usize] {
-				Tile::Tunnel(dir_set) => if dir_set.is_set(DIRECTION_UP) { " X" } else { "XX" },
-				_ => "XX"
+				Tile::Tunnel(dir_set) => if dir_set.is_set(DIRECTION_UP) { " #" } else { "##" },
+				_ => "##"
 			});
 		}
 		output.push_str("\n");
 
 		for y in area.min.y .. area.max.y + 1 {
 			output.push_str(match self.map[y as usize][0] {
-				Tile::Tunnel(dir_set) => if dir_set.is_set(DIRECTION_LEFT) { " " } else { "X" },
-				_ => "X"
+				Tile::Tunnel(dir_set) => if dir_set.is_set(DIRECTION_LEFT) { " " } else { "#" },
+				_ => "#"
 			});
 
 			for x in area.min.x .. area.max.x + 1 {
@@ -423,35 +422,35 @@ impl Labyrinth {
 						if dir_set.is_set(DIRECTION_RIGHT) {
 							if x < area.max.x {
 								match self.map[y as usize][(x + 1) as usize] {
-									Tile::Room(_) => output.push_str("D"),
+									Tile::Room(_) => output.push_str("?"),
 									_ => output.push_str(" ")
 								}
 							} else {
 								output.push_str(" ")
 							}
 						} else {
-							output.push_str("X");
+							output.push_str("#");
 						}
 					},
 					Tile::Room(_) => {
 						if x < area.max.x {
 							match self.map[y as usize][(x + 1) as usize] {
-								Tile::Room(_) => output.push_str("RR"),
+								Tile::Room(_) => output.push_str("  "),
 								Tile::Tunnel(dir_set) => if dir_set.is_set(DIRECTION_LEFT) {
-									output.push_str("RD")
+									output.push_str(" ?")
 								} else {
-									output.push_str("RX")
+									output.push_str(" #")
 								},
-								_ => output.push_str("RX")
+								_ => output.push_str(" #")
 							}
 						} else {
-							output.push_str("RX");
+							output.push_str(" #");
 						}
 					},
 					_ => ()
 				}
 			};
-			output.push_str("\nX");
+			output.push_str("\n#");
 
 			for x in area.min.x .. area.max.x + 1 {
 				match self.map[y as usize][x as usize] {
@@ -459,16 +458,16 @@ impl Labyrinth {
 						if dir_set.is_set(DIRECTION_DOWN) {
 							if y < area.max.y {
 								match self.map[(y + 1) as usize][x as usize] {
-									Tile::Room(_) => output.push_str("D"),
+									Tile::Room(_) => output.push_str("?"),
 									_ => output.push_str(" ")
 								}
 							} else {
 								output.push_str(" ")
 							}
 						} else {
-							output.push_str("X")
+							output.push_str("#")
 						}
-						output.push_str("X")
+						output.push_str("#")
 					},
 					Tile::Room(_) => {
 						if y < area.max.y {
@@ -478,21 +477,21 @@ impl Labyrinth {
 									if x < area.max.x {
 										match self.map[(y + 1) as usize][(x + 1) as usize] {
 											Tile::Room(_) => output.push_str(" "),
-											_ => output.push_str("X")
+											_ => output.push_str("#")
 										}
 									} else {
-										output.push_str("X");
+										output.push_str("#");
 									}
 								},
 								Tile::Tunnel(dir_set) => if dir_set.is_set(DIRECTION_UP) {
-									output.push_str("DX")
+									output.push_str("?#")
 								} else {
-									output.push_str("XX");
+									output.push_str("##");
 								},
-								_ => output.push_str("XX")
+								_ => output.push_str("##")
 							}
 						} else {
-							output.push_str("XX");
+							output.push_str("##");
 						}
 					},
 					_ => ()
