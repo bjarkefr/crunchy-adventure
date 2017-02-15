@@ -173,12 +173,18 @@ fn main() {
 
 	labyrinth.place_rooms(&mut rng, 10, &Vector::new(3,3), &Vector::new(8,8));
 
-	let mut subarea_a = roomat::SubArea::new();
-	let mut subarea_b = roomat::SubArea::new();
-
-	subarea_a.add_association(&subarea_b);
-
-	let area_data = roomat::Area::Area(vec![]);
+	let area = roomat::Area::SubArea(roomat::SubArea::new(
+		vec![
+			roomat::Area::create_from_room(roomat::Room::new(10,2)),
+			roomat::Area::create_from_room(roomat::Room::new(12,3)),
+			roomat::Area::create_from_room(roomat::Room::new(16,4))
+		],
+		vec![
+			roomat::Association::new(1, 2, 20.0),
+			roomat::Association::new(2, 3, 10.0),
+			roomat::Association::new(1, 3, 50.0)
+		]
+	));
 
 	println!("{}", labyrinth.to_string());
 
