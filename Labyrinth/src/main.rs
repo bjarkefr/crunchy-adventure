@@ -3,116 +3,17 @@
 extern crate rand;
 use rand::Rng;
 use std::cmp;
-use std::cmp::Ordering;
+//use std::cmp::Ordering;
 use std::ops::Add;
 use std::ops::Sub;
 use std::vec::Vec;
-use std::collections::BinaryHeap;
+//use std::collections::BinaryHeap;
 
-#[derive(Copy, Clone, PartialEq, Eq)]
-struct Direction(u32);
-
-impl Direction {
-	pub fn inverse(self) -> Direction {
-		match self {
-			DIRECTION_LEFT => DIRECTION_RIGHT,
-			DIRECTION_RIGHT => DIRECTION_LEFT,
-			DIRECTION_UP => DIRECTION_DOWN,
-			DIRECTION_DOWN => DIRECTION_UP,
-			_ => DIRECTION_NONE
-		}
-	}
-
-	pub fn to_unit_vector(self) -> Vector {
-		match self {
-			DIRECTION_LEFT => Vector::new(-1, 0),
-			DIRECTION_RIGHT => Vector::new(1, 0),
-			DIRECTION_UP => Vector::new(0, -1),
-			DIRECTION_DOWN => Vector::new(0, 1),
-			_ => Vector::new(0, 0)
-		}
-	}
-
-	pub fn to_char(self) -> char {
-		match self.0 {
-			0 => ' ',
-			1 => '←',
-			2 => '→',
-			4 => '↑',
-			8 => '↓',
-			_ => '?'
-		}
-	}
-}
-
-const DIRECTION_NONE : Direction = Direction(0);
-const DIRECTION_LEFT : Direction = Direction(1);
-const DIRECTION_RIGHT : Direction = Direction(2);
-const DIRECTION_UP : Direction = Direction(4);
-const DIRECTION_DOWN : Direction = Direction(8);
-
-#[derive(Copy, Clone, PartialEq)]
-struct DirectionSet(u32);
-
-impl DirectionSet {
-	pub fn new() -> DirectionSet {
-		DirectionSet(0)
-	}
-
-	pub fn is_set(self, dir: Direction) -> bool {
-		self.0 & dir.0 != 0
-	}
-
-	pub fn set(self, dir: Direction) -> DirectionSet {
-		DirectionSet(self.0 | dir.0)
-	}
-
-	pub fn to_vec(self) -> Vec<Direction> {
-		let mut vec = Vec::new();
-
-		if self.is_set(DIRECTION_LEFT) {
-			vec.push(DIRECTION_LEFT)
-		}
-		if self.is_set(DIRECTION_RIGHT) {
-			vec.push(DIRECTION_RIGHT)
-		}
-		if self.is_set(DIRECTION_UP) {
-			vec.push(DIRECTION_UP)
-		}
-		if self.is_set(DIRECTION_DOWN) {
-			vec.push(DIRECTION_DOWN)
-		}
-
-		vec
-	}
-
-	pub fn to_char(self) -> char {
-		match self.0 {
-			0 => ' ',
-			1 => '←',
-			2 => '→',
-			3 => '─',
-			4 => '↑',
-			5 => '┘',
-			6 => '└',
-			7 => '┴',
-			8 => '↓',
-			9 => '┐',
-			10 => '┌',
-			11 => '┬',
-			12 => '│',
-			13 => '┤',
-			14 => '├',
-			15 => '┼',
-			_ => '?'
-		}
-	}
-}
+mod roomat;
 
 #[derive(Copy, Clone, PartialEq)]
 enum Tile {
 	Unassigned,
-	Tunnel(DirectionSet),
 	Room(i32)
 }
 
@@ -120,7 +21,6 @@ impl Tile {
 	pub fn to_char(self) -> char {
 		match self {
 			Tile::Unassigned => '?',
-			Tile::Tunnel(dirs) => dirs.to_char(),
 			Tile::Room(num) => match num {
 				0...9 => match num.to_string().chars().next() {
 					Some(n) => n,
@@ -143,18 +43,6 @@ impl Vector {
 		Vector { x: x, y: y }
 	}
 
-	pub fn to_direction(&self) -> Direction {
-		if self.x == 0 {
-			if self.y == 1 { DIRECTION_DOWN } else { if self.y == -1 { DIRECTION_UP } else { DIRECTION_NONE } }
-		}
-		else if self.y == 0 {
-			if self.x == 1 { DIRECTION_RIGHT } else { if self.x == -1 { DIRECTION_LEFT } else { DIRECTION_NONE } }
-		}
-		else {
-			DIRECTION_NONE
-		}
-	}
-
 	pub fn to_string(&self) -> String {
 		format!("({}, {})", self.x, self.y)
 	}
@@ -175,11 +63,6 @@ impl<'a, 'b> Sub<&'b Vector> for &'a Vector {
         Vector { x: self.x - other.x, y: self.y - other.y }
     }
 }
-
-const LEFT_UNIT_VECTOR : Vector = Vector { x: -1, y: 0 }; //DIRECTION_UP.to_unit_vector(); // impossible method call without some experimental features...
-const RIGHT_UNIT_VECTOR : Vector = Vector { x: 1, y: 0 };
-const UP_UNIT_VECTOR : Vector = Vector { x: 0, y: -1 };
-const DOWN_UNIT_VECTOR : Vector = Vector { x: 0, y: 1 };
 
 struct Area {
 	min: Vector,
@@ -224,52 +107,19 @@ impl Area {
 	pub fn to_string(&self) -> String {
 		format!("[{} - {}]", self.min.to_string(), self.max.to_string())
 	}
-
-	pub fn edge_direction(&self, from: &Vector) -> Direction {
-		let minx_dist = from.x - self.min.x;
-		let maxx_dist = self.max.x - from.x;
-
-		let xmin_dist = cmp::min(minx_dist, maxx_dist);
-
-		let miny_dist = from.y - self.min.y;
-		let maxy_dist = self.max.y - from.y;
-
-		let ymin_dist = cmp::min(miny_dist, maxy_dist);
-
-		if xmin_dist < ymin_dist {
-			if xmin_dist == minx_dist {
-				DIRECTION_LEFT
-			} else {
-				DIRECTION_RIGHT
-			}
-		} else {
-			if ymin_dist == miny_dist {
-				DIRECTION_UP
-			} else {
-				DIRECTION_DOWN
-			}
-		}
-	}
 }
 
 const LABYRINTH_WIDTH: usize = 40;
 const LABYRINTH_HEIGHT: usize = 40;
 
 struct Labyrinth {
-	map: ([[Tile; LABYRINTH_WIDTH]; LABYRINTH_HEIGHT]),
-	connected_rooms: Vec<bool>
+	map: ([[Tile; LABYRINTH_WIDTH]; LABYRINTH_HEIGHT])
 }
 
 impl Labyrinth {
 	pub fn new() -> Labyrinth {
-		Labyrinth { map: [[Tile::Unassigned; LABYRINTH_WIDTH]; LABYRINTH_HEIGHT], connected_rooms: Vec::new() }
+		Labyrinth { map: [[Tile::Unassigned; LABYRINTH_WIDTH]; LABYRINTH_HEIGHT] }
 	}
-
-	/*fn iter(&self, area: Area) -> Box<Iterator<Item=Tile>> { //iter::Map<iter::Take<iter::Skip<slice::Iter<Tile>>>> {
-		let rowIter = self.map.iter().skip(area.min.y as usize).take((area.max.y - area.min.y) as usize);
-
-		Box::new(rowIter.map(|row| row.iter().skip(area.min.x as usize).take((area.max.x - area.min.x) as usize)))
-	}*/ // @TOBY: HEEEEEEEEEEELP!!!!
 
 	pub fn area_unassigned(&self, area: &Area) -> bool {
 		self.map[area.min.y as usize .. (area.max.y + 1) as usize].iter().all(|row| {
@@ -303,119 +153,8 @@ impl Labyrinth {
 			}
 
 			id += 1;
-			self.connected_rooms.push(false);
 			self.place(Tile::Room(id), &room_area);
 		}
-	}
-
-	fn dig_tunnel_piece(&mut self, pos: &Vector, dir: Direction) {
-		self.map[pos.y as usize][pos.x as usize] = match self.map[pos.y as usize][pos.x as usize] {
-			Tile::Unassigned => Tile::Tunnel(DirectionSet::new().set(dir)),
-			Tile::Tunnel(dir_set) => Tile::Tunnel(dir_set.set(dir)),
-			Tile::Room(n) => {
-				self.connected_rooms[n as usize] = true;
-				Tile::Room(n)
-			}
-		}
-	}
-
-	fn dig_tunnel_segment(&mut self, from: &Vector, dir: Direction) -> Vector {
-		let to = from + &dir.to_unit_vector();
-		let inverse_dir = dir.inverse();
-
-		self.dig_tunnel_piece(from, dir);
-		self.dig_tunnel_piece(&to, inverse_dir);
-
-		to
-	}
-
-	fn direction_digable(&self, from: &Vector, dir: Direction) -> bool {
-		let dest = from + &dir.to_unit_vector();
-
-		if !self.area().contains(&dest) {
-			return false
-		}
-
-		match self.map[dest.y as usize][dest.x as usize] {
-			Tile::Unassigned => true,
-			Tile::Room(n) => !self.connected_rooms[n as usize],
-			_ => false
-		}
-	}
-
-	fn digable_directions(&self, from: &Vector) -> DirectionSet {
-		if match self.map[from.y as usize][from.x as usize] {
-			Tile::Room(_) => true,
-			_ => false
-		} {
-			return DirectionSet::new()
-		}
-
-		let mut digable_directions = DirectionSet::new();
-
-		if self.direction_digable(from, DIRECTION_LEFT) {
-			digable_directions = digable_directions.set(DIRECTION_LEFT)
-		}
-		if self.direction_digable(from, DIRECTION_RIGHT) {
-			digable_directions = digable_directions.set(DIRECTION_RIGHT)
-		}
-		if self.direction_digable(from, DIRECTION_UP) {
-			digable_directions = digable_directions.set(DIRECTION_UP)
-		}
-		if self.direction_digable(from, DIRECTION_DOWN) {
-			digable_directions = digable_directions.set(DIRECTION_DOWN)
-		}
-
-		digable_directions
-	}
-
-	fn tunnel_in_direction(&mut self, rng: &mut rand::ThreadRng, pile: &mut RandomPile, start: &Vector, dir: Direction) {
-		let mut current = (*start).clone();
-		let mut current_dir = dir;
-
-		if !self.direction_digable(&current, dir) {
-			return;
-		}
-
-		loop {
-			current = self.dig_tunnel_segment(&current, current_dir);
-
-			let mut dirs = self.digable_directions(&current).to_vec();
-			if dirs.len() == 0 {
-				return;
-			}
-
-			let max_n = dirs.len();
-			current_dir = dirs.swap_remove(rng.gen_range(0, max_n));
-
-			pile.push_multiple(rng,
-				dirs.iter().map(|dir| BasedDir::new(current, *dir)).collect()
-			);
-		}
-	}
-
-	/*fn find_tunnel_entrance(&self, rng: &mut rand::ThreadRng) -> BasedDir {
-		BasedDir::new(Vector::new(0,0), DIRECTION_RIGHT) // TODO!!
-	}*/
-
-	pub fn place_tunnels(&mut self, rng: &mut rand::ThreadRng, start: Vector) {
-		let dir = self.area().edge_direction(&start);
-		self.dig_tunnel_piece(&start, dir); //start.dir.inverse()
-
-		let mut pile = RandomPile::new();
-
-		pile.push(rng, BasedDir::new(start, DIRECTION_LEFT));
-		pile.push(rng, BasedDir::new(start, DIRECTION_RIGHT));
-		pile.push(rng, BasedDir::new(start, DIRECTION_UP));
-		pile.push(rng, BasedDir::new(start, DIRECTION_DOWN));
-
-		while match pile.pop() {
-			Some(dir) => {
-				self.tunnel_in_direction(rng, &mut pile, &dir.pos, dir.dir);
-				true
-			},
-			None => false
-		} {}
 	}
 
 	pub fn to_string(&self) -> String {
@@ -425,210 +164,23 @@ impl Labyrinth {
 			row_iter.collect::<String>()
 		}).collect()
 	}
-
-	pub fn to_string_large(&self) -> String {
-		let area = self.area();
-		let mut output = String::new();
-
-		output.push_str("#");
-		for x in area.min.x .. area.max.x + 1 {
-			output.push_str(match self.map[0][x as usize] {
-				Tile::Tunnel(dir_set) => if dir_set.is_set(DIRECTION_UP) { " #" } else { "##" },
-				_ => "##"
-			});
-		}
-		output.push_str("\n");
-
-		for y in area.min.y .. area.max.y + 1 {
-			output.push_str(match self.map[y as usize][0] {
-				Tile::Tunnel(dir_set) => if dir_set.is_set(DIRECTION_LEFT) { " " } else { "#" },
-				_ => "#"
-			});
-
-			for x in area.min.x .. area.max.x + 1 {
-				match self.map[y as usize][x as usize] {
-					Tile::Tunnel(dir_set) => {
-						output.push_str(" ");
-						if dir_set.is_set(DIRECTION_RIGHT) {
-							if x < area.max.x {
-								match self.map[y as usize][(x + 1) as usize] {
-									Tile::Room(_) => output.push_str("?"),
-									_ => output.push_str(" ")
-								}
-							} else {
-								output.push_str(" ")
-							}
-						} else {
-							output.push_str("#");
-						}
-					},
-					Tile::Room(_) => {
-						if x < area.max.x {
-							match self.map[y as usize][(x + 1) as usize] {
-								Tile::Room(_) => output.push_str("  "),
-								Tile::Tunnel(dir_set) => if dir_set.is_set(DIRECTION_LEFT) {
-									output.push_str(" ?")
-								} else {
-									output.push_str(" #")
-								},
-								_ => output.push_str(" #")
-							}
-						} else {
-							output.push_str(" #");
-						}
-					},
-					_ => ()
-				}
-			};
-			output.push_str("\n#");
-
-			for x in area.min.x .. area.max.x + 1 {
-				match self.map[y as usize][x as usize] {
-					Tile::Tunnel(dir_set) => {
-						if dir_set.is_set(DIRECTION_DOWN) {
-							if y < area.max.y {
-								match self.map[(y + 1) as usize][x as usize] {
-									Tile::Room(_) => output.push_str("?"),
-									_ => output.push_str(" ")
-								}
-							} else {
-								output.push_str(" ")
-							}
-						} else {
-							output.push_str("#")
-						}
-						output.push_str("#")
-					},
-					Tile::Room(_) => {
-						if y < area.max.y {
-							match self.map[(y + 1) as usize][x as usize] {
-								Tile::Room(_) => {
-									output.push_str(" ");
-									if x < area.max.x {
-										match self.map[(y + 1) as usize][(x + 1) as usize] {
-											Tile::Room(_) => output.push_str(" "),
-											_ => output.push_str("#")
-										}
-									} else {
-										output.push_str("#");
-									}
-								},
-								Tile::Tunnel(dir_set) => if dir_set.is_set(DIRECTION_UP) {
-									output.push_str("?#")
-								} else {
-									output.push_str("##");
-								},
-								_ => output.push_str("##")
-							}
-						} else {
-							output.push_str("##");
-						}
-					},
-					_ => ()
-				}
-			};
-			output.push_str("\n");
-		}
-
-		output
-	}
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-struct BasedDir {
-	pos: Vector,
-	dir: Direction
-}
-
-impl BasedDir {
-	pub fn new(pos: Vector, dir: Direction) -> BasedDir {
-		BasedDir { pos: pos, dir: dir }
-	}
-}
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-struct RandomNode {
-	data: BasedDir,
-	value: i32
-}
-
-impl Ord for RandomNode {
-    fn cmp(&self, other: &RandomNode) -> Ordering {
-        self.value.cmp(&other.value)
-    }
-}
-
-impl PartialOrd for RandomNode {
-    fn partial_cmp(&self, other: &RandomNode) -> Option<Ordering> {
-        Some(other.cmp(self))
-    }
-}
-
-struct RandomPile(BinaryHeap<RandomNode>);
-
-impl RandomPile {
-	pub fn new() -> RandomPile {
-		RandomPile(BinaryHeap::new())
-	}
-
-	pub fn push(&mut self, rng: &mut rand::ThreadRng, data: BasedDir) {
-		let node = RandomNode { data: data, value: rng.gen() };
-		self.0.push(node)
-	}
-
-	pub fn push_multiple(&mut self, rng: &mut rand::ThreadRng, data: Vec<BasedDir>) {
-		for entry in data {
-			self.push(rng, entry)
-		}
-	}
-
-	pub fn pop(&mut self) -> Option<BasedDir> {
-		match self.0.pop() {
-			Some(node) => Some(node.data),
-			None => None
-		}
-	}
 }
 
 fn main() {
 	let mut rng = rand::thread_rng();
 
-	//let mut heap = BinaryHeap::new();
-
-	/*heap.push(RandomNode { pos: Vector::new(1, 0), value: 1 });
-	heap.push(RandomNode { pos: Vector::new(2, 2), value: 5 });
-	heap.push(RandomNode { pos: Vector::new(2, 2), value: 2 });
-
-	match heap.pop() {
-		Some(node) => println!("{}@{}", node.value, node.pos.to_string()),
-		_ => ()
-	};
-
-	match heap.pop() {
-		Some(node) => println!("{}@{}", node.value, node.pos.to_string()),
-		_ => ()
-	};*/
-
-	//labyrinth[0][0] = Tile::Room(1);
-
-	//let h = Tile::Tunnel(DirectionSet::new().set_up().set_down().set_right());
-
 	let mut labyrinth = Labyrinth::new();
 
 	labyrinth.place_rooms(&mut rng, 10, &Vector::new(3,3), &Vector::new(8,8));
 
-	labyrinth.place_tunnels(&mut rng, Vector::new(0,0));
+	let mut subarea_a = roomat::SubArea::new();
+	let mut subarea_b = roomat::SubArea::new();
 
-	//labyrinth.tunnel_in_direction(&mut rng, &Vector::new(0,0), DIRECTION_DOWN);
+	subarea_a.add_association(&subarea_b);
 
-	//labyrinth.place(Tile::Room(9), &Area::new(0,0,9,0));
-
-	//labyrinth.place(Tile::Tunnel(DirectionSet::new().set_down()), &subArea);
+	let area_data = roomat::Area::Area(vec![]);
 
 	println!("{}", labyrinth.to_string());
-	println!("{}", labyrinth.to_string_large());
 
-	//println!("{}", Area { min: Vector { x: 0, y: 9 }, max: Vector { x: 0, y: 9 } }.to_string());
-
-	//println!("Room {} - Subarea {} / {}", room_area.to_string(), subArea.to_string(), subArea.dimensions().to_string());
+	println!("{}", roomat::too_strong());
 }
