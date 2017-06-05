@@ -1,0 +1,10 @@
+[package]
+name = "server"
+version = "0.1.0"
+authors = ["bfr <bfr>"]
+
+[dependencies]
+ws = "0.7.1"
+env_logger = "0.4.3"
+uuid = { version = "0.4", features = ["v4"] }
+serde = "1.0.8"
